@@ -1,4 +1,4 @@
-# EnCus: Customizing Search Space for Automated Program Repair
+# EnCus: Ensemble-based Search Space Customization for Automated Program Repair
 
 ---
 
