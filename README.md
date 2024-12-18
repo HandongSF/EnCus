@@ -191,6 +191,3 @@
 |`patch.strategy`|no|*automatically set by launcher*|
 |`concretize.strategy`|no|*automatically set by launcher*|
 |`fl.metric`|yes|define how Fault Localization is done. default is perfect. only required for ConFix|
-
-# EnCus
-# EnCus
