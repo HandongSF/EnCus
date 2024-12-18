@@ -4,9 +4,6 @@
 
 [EnCus Result - Google Spreadsheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vR_H_gs_0kyAa0ioX9FeJehpIDRqY-bWyxvCoBHz49H1pubUlNfiOGQQSviQI_6idhs8KD7JovzUDZt/pubhtml)
 
-
-[EnCus Result - Google Spreadsheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vR_H_gs_0kyAa0ioX9FeJehpIDRqY-bWyxvCoBHz49H1pubUlNfiOGQQSviQI_6idhs8KD7JovzUDZt/pubhtml)
-
 [EnCus Installation](https://docs.google.com/document/d/e/2PACX-1vSoYRt1hmdn_ejrmxwdcRJULARg_wmuS3MO6L0QRDrU0SmIas9hbE-rLUhKdvMGMOzOe-5coaqfHmMB/pub)
 
 ---
