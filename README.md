@@ -22,7 +22,6 @@
 - JDK**s**
     - Oracle JDK 17 (Used to compile `ChangeCollector` and `Longest Common sub-vector Extractor`)
     - Oracle JDK 8 (Used by Defects4J)
-    - Oracle JDK 7 (Used by SimFix)
 - [Defects4J](https://github.com/rjust/defects4j)
     - See [requirements](https://github.com/rjust/defects4j#requirements)
 - Python
@@ -37,7 +36,6 @@
     - [SDKMAN!](https://sdkman.io/)
         - JDK 17 : Used to compile `ChangeCollector` and `Longest Common sub-vector Extractor`
         - JDK 8 : Used by Defects4J Framework
-        - JDK 8 : Used by SimFix
         - Maven : Used by ConFix
         - Gradle : Used by `ChangeCollector`,`Longest Common sub-vector Extractor` and Defects4J Framework
 
@@ -102,7 +100,7 @@
 #### Arguments
 - `'-r', '--rebuild'` : Rebuild all submodules (ChangeCollector, LCE) on start of execution. In default, `launcher.py` does not rebuild each submodules on execution.
 - `'-d', '--debug'` : Execute single Defects4J project, `Closure-14` for testing a cycle of execution. Debug uses `flfreq` and `hash-match` strategies. EnCus consists of three Java projects as submodules. Thus you may need to check if there is no compile error or wrong paths given through debug execution. If no problem occurs, you are clear to launch.
-- `'-A', '--APR'` : Choose APR tool between `ConFix` and `SimFix`. Default APR tool is `ConFix`.
+- `'-A', '--APR'` : Choose APR tool. Default APR tool is `ConFix`.
 - `'-p', '--pool'` : Optional, you can provide patches directly being used for ConFix. Patches should be a form of #_new.java. The number should be consecutive.
 - `'-t', '--textsim'` : Use Cosine Text Similarity to extract patches. It extracts 3 * candidate numbers using LCE and top candidate numbers using cosine similarity. Giving it the value `tree`, the text similarity is evaluated based on the result of the code differencing.
 - `'-D', '--Differencing'` : Choose the code differencing tool to be used during the `ChangeCollector` stage. Options include: `GumTree3.0`, `Gumtree4.0`, and `LAS`.
@@ -136,7 +134,6 @@
 |`faulty_line_fix`|In mode `github`|Line number of `faulty_file` to try modifying. *Automatically set when running `ENCUS` in mode `defects4j` / `defects4j-batch`*|
 |`faulty_line_blame`|In mode `github`|Line number of `faulty file` where the bug is made. *Automatically set when running `ENCUS` in mode `defects4j` / `defects4j-batch`*|
 |`JAVA_HOME_8`|**Yes**|Absolute path of JDK 8. Necessary to build and compile ConFix.|
-|`JAVA_HOME_7`|**Yes**|Absolute path of JDK 7. Necessary to build and compile SimFix.|
 |`byproduct_path`|No|Directory which files and folders made during the progress of `ENCUS` should be stored into. *Will make folder `byproducts` inside `root` by default.*|
 |`root`|No|Directory where `ENCUS` root directory is placed.|
 |`patch_strategy`|No|List of patch strategies (among `flfreq`, `tested-first`, `noctx`, `patch`) to run `ENCUS` with. Comma-separated.|
