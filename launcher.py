@@ -13,6 +13,8 @@ import datetime as dt
 import csv
 import xml.etree.ElementTree as ET
 
+cases = list()
+settings = configparser.ConfigParser()
 
 def parse_argv() -> tuple:
     parser = argparse.ArgumentParser()
@@ -25,10 +27,17 @@ def parse_argv() -> tuple:
     parser.add_argument("-r", "--rebuild",  action = "store_true",
                         help = "Rebuilds all SPI submodules if enabled.")
     
-    parser.add_argument("-t","--textsim", action = "store_true", help = "On and Off options to use text sim or not")
+    parser.add_argument("-t","--textsim", type = str, default = "false",
+                        help = "Specifies target of text sim (diff, tree). 'tree' mode calculates simlarity based on the results of the AST-based code differencing tool results.")
 
     parser.add_argument("-A", "--APR",   type = str,     default = "ConFix",
                         help = "Tells on what APR do you want to use.")
+
+    parser.add_argument("-D", "--Differencing",   type = str,     default = "GumTree4.0",
+                        help = "Specifies code differencing tool to be used (GumTree3.0, GumTree4.0, and LAS).")
+
+    parser.add_argument("-S", "--Dataset",   type = str,     default = "Starred",
+                        help = "Specifies dataset to be used (Starred, GBR, Type).")
     
     parser.add_argument("-p", "--pool", type = str, default = None, help="Use Predefined Patches")
     
@@ -39,14 +48,15 @@ def parse_argv() -> tuple:
 
     args = parser.parse_args()
 
-    settings = configparser.ConfigParser()
     settings.optionxform = str
     settings.read(args.config)
 
     settings['SPI']['debug'] = str(args.debug)
     settings['SPI']['APR'] = str(args.APR)
+    settings['SPI']['Differencing'] = str(args.Differencing)
+    settings['SPI']['Dataset'] = str(args.Dataset)
 
-    cases = list()
+
     if args.debug == True:
         cases.append(dict())
         settings['SPI']['mode'] = "defects4j" # override mode
@@ -102,10 +112,7 @@ def parse_argv() -> tuple:
     else:
         settings['SPI']['with_predefined_pool'] = "False"
     
-    if args.textsim == True:
-        settings['LCE']['text_sim'] = "true"
-    else:
-        settings['LCE']['text_sim'] = "false"
+    settings['LCE']['text_sim'] = args.textsim
 
 
     return (cases, settings)
@@ -288,6 +295,9 @@ def run_CC(case : dict, is_defects4j : bool, is_vjbench : bool, conf_SPI : confi
             prop_CC['lineFix'] = conf_SPI['faulty_line_fix']
             prop_CC['lineBlame'] = conf_SPI['faulty_line_blame']
 
+        prop_CC['Differencing'] = conf_SPI['Differencing']
+        prop_CC['Dataset'] = conf_SPI['Dataset']
+
         with open(os.path.join(case['target_dir'], "properties", "CC.properties"), "wb") as f:
             prop_CC.store(f, encoding = "UTF-8")
 
@@ -310,13 +320,18 @@ def run_LCE(case : dict, is_defects4j : bool, conf_SPI : configparser.SectionPro
 
         prop_LCE['SPI.dir'] = conf_SPI['root']
 
-        prop_LCE['pool_file.dir'] = os.path.join(conf_SPI['root'], "components", "LCE", "gumtree_vector.csv")
-        prop_LCE['meta_pool_file.dir'] = os.path.join(conf_SPI['root'], "components", "LCE", "commit_file.csv")
+        lce_vector_file = "vector_file_{dataset}_{differencing}.csv".format(dataset =  settings['SPI']['Dataset'], differencing = settings['SPI']['Differencing'])
+        lce_commit_file = "commit_file_{dataset}.csv".format(dataset =  settings['SPI']['Dataset'])
 
+        prop_LCE['pool_file.dir'] = os.path.join(conf_SPI['root'], "components", "LCE", lce_vector_file)
+        prop_LCE['meta_pool_file.dir'] = os.path.join(conf_SPI['root'], "components", "LCE", lce_commit_file)
+
+        prop_LCE['target_diff.dir'] = os.path.join(case['target_dir'], "outputs", "ChangeCollector", "gumtree_log.txt")
         prop_LCE['target_vector.dir'] = os.path.join(case['target_dir'], "outputs", "ChangeCollector", f"{case['identifier']}_gumtree_vector.csv")
 
         prop_LCE['pool.dir'] = conf_SPI['stored_pool_dir']
         prop_LCE['textSimPool.dir'] = os.path.join(case['target_dir'], "outputs", "LCE", "result")
+        prop_LCE['text_sim'] = conf_LCE['text_sim']
         prop_LCE['candidates.dir'] = os.path.join(case['target_dir'], "outputs", "LCE", "candidates")
 
         prop_LCE['d4j_project_name'] = case['identifier']
@@ -336,149 +351,14 @@ def run_LCE(case : dict, is_defects4j : bool, conf_SPI : configparser.SectionPro
     else:
         return True
 
-def run_ConFix(case : dict, is_defects4j : bool, is_vjbench : bool, conf_SPI : configparser.SectionProxy, conf_ConFix : configparser.SectionProxy) -> bool:
-    try:
-        conf_runner = configparser.ConfigParser()
-        conf_runner.optionxform = str
-        conf_runner.add_section('Project')
-        conf_runner['Project'] = conf_SPI
-        with open(os.path.join(case['target_dir'], "properties", "confix_runner.ini"), "w") as f:
-            conf_runner.write(f)
-
-
-        prop_ConFix = jproperties.Properties()
-        for key in conf_ConFix.keys():
-            prop_ConFix[key] = conf_ConFix[key]
-
-        prop_ConFix['jvm'] = os.path.join(conf_SPI['JAVA_HOME_8'], "bin", "java")
-        prop_ConFix['version'] = "1.8"
-        # prop_ConFix['version'] = "1.8" if conf_ConFix['version'] == "" else conf_ConFix['version'] # Commented out since only Java 8 seems to work.
-        # prop_ConFix['pool.path'] = f"{os.path.join(conf_SPI['root'], 'core', 'confix', 'pool', 'ptlrh')},{os.path.join(conf_SPI['root'], 'core', 'confix', 'pool', 'plrt')}"
-        prop_ConFix['pool.path'] = f"{os.path.join(conf_SPI['root'], 'Correct_patch')}" #SC: Reproducing purpose
-        prop_ConFix['cp.lib'] = os.path.join(conf_SPI['root'], 'core', 'confix', 'lib', 'confix-ami_torun.jar')
-
-        with open(os.path.join(case['target_dir'], "properties", "confix.properties"), "wb") as f:
-            prop_ConFix.store(f, encoding = "UTF-8") 
-
-        if is_defects4j == True:
-            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-d", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
-        elif is_vjbench == True:
-            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-v", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
-        else:
-            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
-        # with open(os.path.join(case['target_dir'], "logs", "ConFix_runner.log"), "w") as f:
-        #     if is_defects4j == True:
-        #         subprocess.run(["python3", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-d", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], env = jdk8_env, stdout = f, check = True)
-        #     else:
-        #         subprocess.run(["python3", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], env = jdk8_env, stdout = f, check = True)
-
-    except Exception as e:
-        traceback.print_exc()
-        return False
-    else:
-        return True
-
-def compile_SimFix(JAVA_Home_7: str) -> bool:
-    try:
-        command = JAVA_Home_7 +  "/bin/javac \
-            -d bin \
-            -cp lib/com.gzoltar-0.1.1-jar-with-dependencies.jar:lib/commons-io-2.5.jar:lib/dom4j-2.0.0-RC1.jar:lib/json-simple-1.1.1.jar:lib/log4j-1.2.17.jar:lib/org.eclipse.core.contenttype_3.5.0.v20150421-2214.jar:lib/org.eclipse.core.jobs_3.7.0.v20150330-2103.jar:lib/org.eclipse.core.resources_3.10.1.v20150725-1910.jar:lib/org.eclipse.core.runtime_3.11.1.v20150903-1804.jar:lib/org.eclipse.equinox.common_3.7.0.v20150402-1709.jar:lib/org.eclipse.equinox.preferences_3.5.300.v20150408-1437.jar:lib/org.eclipse.jdt.core_3.11.2.v20160128-0629.jar:lib/org.eclipse.osgi_3.10.102.v20160118-1700.jar:lib/org.eclipse.text-3.5.101.jar \
-            $(find src -name '*.java')"
-        subprocess.run(command, shell=True)
-
-    except Exception as e:
-        traceback.print_exc()
-        return False
-    return True
-
-def run_SimFix(JAVA_HOME_7: str, JAVA_HOME_8: str, d4j_checkout_dir: str, projectName: str, bugId: str, LCE_candidates_path: str) -> bool:
-    try:
-        command = JAVA_HOME_7 + "/bin/java \
-            -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 \
-            -classpath bin:lib/org.eclipse.core.contenttype_3.5.0.v20150421-2214.jar:lib/org.eclipse.core.jobs_3.7.0.v20150330-2103.jar:lib/org.eclipse.core.resources_3.10.1.v20150725-1910.jar:lib/org.eclipse.core.runtime_3.11.1.v20150903-1804.jar:lib/org.eclipse.equinox.common_3.7.0.v20150402-1709.jar:lib/org.eclipse.equinox.preferences_3.5.300.v20150408-1437.jar:lib/org.eclipse.jdt.core_3.11.2.v20160128-0629.jar:lib/org.eclipse.osgi_3.10.102.v20160118-1700.jar:/Users/choejunhyeog/.p2/pool/plugins/org.junit_4.13.2.v20230809-1000.jar:/Users/choejunhyeog/.p2/pool/plugins/org.hamcrest_2.2.0.jar:/Users/choejunhyeog/.p2/pool/plugins/org.hamcrest.core_2.2.0.v20230809-1000.jar:lib/log4j-1.2.17.jar:lib/com.gzoltar-0.1.1-jar-with-dependencies.jar:lib/dom4j-2.0.0-RC1.jar:lib/commons-io-2.5.jar:lib/json-simple-1.1.1.jar \
-            cofix.main.Main \
-            --proj_home=" + d4j_checkout_dir + \
-            " --proj_name=" +  projectName +  \
-            " --bug_id=" + bugId + \
-            " --LCE_candidates_path=" + LCE_candidates_path + \
-            " --JAVA_HOME_8=" + JAVA_HOME_8
-
-        subprocess.run(command, shell=True)
-    except Exception as e:
-        traceback.print_exc()
-        return False
-    return True
-
-#######
-# Main
-#######
-
-def main(argv):
-    cases, settings = parse_argv()
-
-    settings['SPI']['root'] = os.getcwd() if settings['SPI']['root'] == "" else settings['SPI']['root']
-    settings['SPI']['byproduct_path'] = os.path.join(settings['SPI']['root'], "byproducts") if settings['SPI']['byproduct_path'] == "" else settings['SPI']['byproduct_path']
-
-    print(f"| SPI  | SPI from directory {settings['SPI']['root']} is going to be launched.")
-    print(f"| SPI  | SPI byproducts will be made in directory {settings['SPI']['byproduct_path']}.")
-
-    
-    is_defects4j = settings['SPI']['mode'] in ("defects4j", "defects4j-batch")
-    is_vjbench = settings['SPI']['mode'] == 'vjbench'
-    is_rebuild_required = (settings['SPI']['rebuild'] == "True")
-
-
+def before_run_ConFix(time_hash, SPI_launch_result_str, log_file, is_defects4j, is_vjbench) :
     patch_strategies = ("flfreq", ) if (settings['SPI']['patch_strategy'] == "" or settings['SPI']['debug'] == "True") else tuple([each.strip() for each in settings['SPI']['patch_strategy'].split(',')])
     concretization_strategies = ("hash-match", ) if (settings['SPI']['concretization_strategy'] == "" or settings['SPI']['debug'] == "True") else tuple([each.strip() for each in settings['SPI']['concretization_strategy'].split(',')])
     print(f"| SPI  | SPI launching with patch strategies {patch_strategies}.")
     print(f"| SPI  | SPI launching with concretization strategies {concretization_strategies}.")
 
-    if is_rebuild_required:
-        print("| SPI  | Have been requested to rebuild all submodules. Commencing...")
-        if rebuild_all(settings['SPI']['root'], settings['SPI']['JAVA_HOME_8']):
-            print("| SPI  | All submodules have been successfully rebuilt.")
-        else:
-            print("| SPI  | ! Some of the submodules have failed to build, thus cannot execute SPI. Aborting the program.")
-            sys.exit(-1)
-
-    if settings['SPI']['mode'] is None:
-        print("| SPI  | ! You have not told me what to fix. Exiting the program.")
-        sys.exit(0)
-
-    
-    time_hash = str(abs(hash(f"{dt.datetime.now().strftime('%Y%m%d%H%M%S')}")))[-6:]
-    SPI_launch_result_str = str()
-    log_file = str()
-
     patch_abb = {"flfreq" : "ff", "tested-first" : "tf", "noctx" : "nc", "patch" : "pt"}
     concretization_abb = {"tcvfl" : "tv", "hash-match" : "hm", "neighbor" : "nb", "tc" : "tc"}
-
-    # if settings['SPI']['APR'] == "SimFix":
-    #     os.chdir('core/SimFix')
-    #     identifierLower = settings['SPI']['identifier'].lower()
-    #     bugId = settings['SPI']['version']
-    #     if settings['SPI']['rebuild']:
-    #         if not check_directory_existence("bin"):
-    #             os.mkdir("bin")
-    #         if not compile_SimFix(settings['SPI']['JAVA_HOME_7']):
-    #             raise RuntimeError("Module 'ConFix' launch failed.")    
-            
-    #     if not check_directory_existence(settings['SimFix']['d4j_checkout_dir']):
-    #         os.mkdir(settings['SimFix']['d4j_checkout_dir'])
-    #     if not check_directory_existence(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower):
-    #         os.mkdir(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower)
-    #     if not check_directory_existence(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower + '/' +identifierLower + '_' + bugId + '_buggy'):
-    #         print("=======> ")
-    #         checkout_command = "defects4j checkout -p {} -v {}b -w /tmp/{}_{}_buggy"
-    #         mv_command = "mv /tmp/{}_{}_buggy {}/{}/{}_{}_buggy"
-    #         os.system(checkout_command.format(settings['SPI']['identifier'], bugId, identifierLower, bugId))
-    #         os.system(mv_command.format(identifierLower, bugId, settings['SimFix']['d4j_checkout_dir'], identifierLower, identifierLower, bugId))
-    #         # print(checkout_command.format(settings['SPI']['identifier'], bugId, identifierLower, bugId))
-    #         # print(mv_command.format(identifierLower, bugId, settings['SimFix']['d4j_checkout_dir'], identifierLower, identifierLower, bugId))
-    #     if not run_SimFix(settings['SPI']['JAVA_HOME_7'], settings['SimFix']['d4j_checkout_dir'], identifierLower, bugId):
-    #         raise RuntimeError("Module 'ConFix' launch failed.")
-    #     return
-        
 
     for patch_strategy in patch_strategies:
         for concretization_strategy in concretization_strategies:
@@ -592,34 +472,7 @@ def main(argv):
                     else:
                         print(f"| SPI  |    > {cursor_str} | Step 1 and Step 2 skipped.")
 
-                    print(f"| SPI  |    > {cursor_str} / Step 3. Running SimFix...")
-                    if settings['SPI']['APR'] == "SimFix":
-                        os.chdir('core/SimFix')
-                        identifierLower = settings['SPI']['identifier'].lower()
-                        bugId = settings['SPI']['version']
-                        if settings['SPI']['rebuild']:
-                            if not check_directory_existence("bin"):
-                                os.mkdir("bin")
-                            if not compile_SimFix(settings['SPI']['JAVA_HOME_7']):
-                                raise RuntimeError("Module 'ConFix' launch failed.")    
-                            
-                        if not check_directory_existence(settings['SimFix']['d4j_checkout_dir']):
-                            os.mkdir(settings['SimFix']['d4j_checkout_dir'])
-                        if not check_directory_existence(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower):
-                            os.mkdir(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower)
-                        if not check_directory_existence(settings['SimFix']['d4j_checkout_dir'] + '/' + identifierLower + '/' +identifierLower + '_' + bugId + '_buggy'):
-                            
-                            checkout_command = "defects4j checkout -p {} -v {}b -w /tmp/{}_{}_buggy"
-                            mv_command = "mv /tmp/{}_{}_buggy {}/{}/{}_{}_buggy"
-                            os.system(checkout_command.format(settings['SPI']['identifier'], bugId, identifierLower, bugId))
-                            os.system(mv_command.format(identifierLower, bugId, settings['SimFix']['d4j_checkout_dir'], identifierLower, identifierLower, bugId))
-                            # print(checkout_command.format(settings['SPI']['identifier'], bugId, identifierLower, bugId))
-                            # print(mv_command.format(identifierLower, bugId, settings['SimFix']['d4j_checkout_dir'], identifierLower, identifierLower, bugId))
-
-                        LCE_candidates_path = case['target_dir'] + '/outputs/LCE/candidates'
-                        if not run_SimFix(settings['SPI']['JAVA_HOME_7'], settings['SPI']['JAVA_HOME_8'], settings['SimFix']['d4j_checkout_dir'], identifierLower, bugId, LCE_candidates_path):
-                            raise RuntimeError("Module 'ConFix' launch failed.")
-                        return
+                        
                     
                     print(f"| SPI  |    > {cursor_str} / Step 3. Running ConFix...")
                     if not run_ConFix(case, is_defects4j, is_vjbench, settings['SPI'], settings['ConFix']):
@@ -697,6 +550,92 @@ def main(argv):
 
             print(f"| SPI  | Total Elapsed Time for strategy combination '{strategy_combination}': {whole_elapsed_time}")
             print(f"| SPI  | {len(succeeded)} succeeded, {len(failed)} failed.")
+
+def run_ConFix(case : dict, is_defects4j : bool, is_vjbench : bool, conf_SPI : configparser.SectionProxy, conf_ConFix : configparser.SectionProxy) -> bool:
+    try:
+        conf_runner = configparser.ConfigParser()
+        conf_runner.optionxform = str
+        conf_runner.add_section('Project')
+        conf_runner['Project'] = conf_SPI
+        with open(os.path.join(case['target_dir'], "properties", "confix_runner.ini"), "w") as f:
+            conf_runner.write(f)
+
+
+        prop_ConFix = jproperties.Properties()
+        for key in conf_ConFix.keys():
+            prop_ConFix[key] = conf_ConFix[key]
+
+        prop_ConFix['jvm'] = os.path.join(conf_SPI['JAVA_HOME_8'], "bin", "java")
+        prop_ConFix['version'] = "1.8"
+        # prop_ConFix['version'] = "1.8" if conf_ConFix['version'] == "" else conf_ConFix['version'] # Commented out since only Java 8 seems to work.
+        # prop_ConFix['pool.path'] = f"{os.path.join(conf_SPI['root'], 'core', 'confix', 'pool', 'ptlrh')},{os.path.join(conf_SPI['root'], 'core', 'confix', 'pool', 'plrt')}"
+        prop_ConFix['pool.path'] = f"{os.path.join(conf_SPI['root'], 'Correct_patch')}" #SC: Reproducing purpose
+        prop_ConFix['cp.lib'] = os.path.join(conf_SPI['root'], 'core', 'confix', 'lib', 'confix-ami_torun.jar')
+
+        with open(os.path.join(case['target_dir'], "properties", "confix.properties"), "wb") as f:
+            prop_ConFix.store(f, encoding = "UTF-8") 
+
+        if is_defects4j == True:
+            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-d", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
+        elif is_vjbench == True:
+            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-v", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
+        else:
+            subprocess.run(["python3.6", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], check = True)
+        # with open(os.path.join(case['target_dir'], "logs", "ConFix_runner.log"), "w") as f:
+        #     if is_defects4j == True:
+        #         subprocess.run(["python3", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-d", "true", "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], env = jdk8_env, stdout = f, check = True)
+        #     else:
+        #         subprocess.run(["python3", os.path.join(conf_SPI['root'], "core", "confix", "run_confix.py"), "-h", case['hash_id'], "-f", os.path.join(case['target_dir'], "properties", "confix_runner.ini")], env = jdk8_env, stdout = f, check = True)
+
+    except Exception as e:
+        traceback.print_exc()
+        return False
+    else:
+        return True
+
+#######
+# Main
+#######
+
+def main(argv):
+    cases, settings = parse_argv()
+
+    settings['SPI']['root'] = os.getcwd() if settings['SPI']['root'] == "" else settings['SPI']['root']
+    settings['SPI']['byproduct_path'] = os.path.join(settings['SPI']['root'], "byproducts") if settings['SPI']['byproduct_path'] == "" else settings['SPI']['byproduct_path']
+
+    print(f"| SPI  | SPI from directory {settings['SPI']['root']} is going to be launched.")
+    print(f"| SPI  | SPI byproducts will be made in directory {settings['SPI']['byproduct_path']}.")
+
+    
+    is_defects4j = settings['SPI']['mode'] in ("defects4j", "defects4j-batch")
+    is_vjbench = settings['SPI']['mode'] == 'vjbench'
+    is_rebuild_required = (settings['SPI']['rebuild'] == "True")
+
+
+    
+
+    if is_rebuild_required:
+        print("| SPI  | Have been requested to rebuild all submodules. Commencing...")
+        if rebuild_all(settings['SPI']['root'], settings['SPI']['JAVA_HOME_8']):
+            print("| SPI  | All submodules have been successfully rebuilt.")
+        else:
+            print("| SPI  | ! Some of the submodules have failed to build, thus cannot execute SPI. Aborting the program.")
+            sys.exit(-1)
+
+    if settings['SPI']['mode'] is None:
+        print("| SPI  | ! You have not told me what to fix. Exiting the program.")
+        sys.exit(0)
+
+    
+    time_hash = str(abs(hash(f"{dt.datetime.now().strftime('%Y%m%d%H%M%S')}")))[-6:]
+    SPI_launch_result_str = str()
+    log_file = str()
+
+    
+    if (settings["SPI"]["APR"] == "ConFix") :
+        before_run_ConFix(time_hash, SPI_launch_result_str, log_file, is_defects4j, is_vjbench)
+
+    
 
 def check_directory_existence(directory_path):
     return os.path.exists(directory_path) and os.path.isdir(directory_path)
