@@ -11,8 +11,8 @@
 ## Submodules (Projects included)
 **ENCUS = CC + LCE + APR(ConFix)**
 - [ConFix](https://github.com/thwak/confix) (Original Repository of ConFix)
-- [ChangeCollector (CC)](https://github.com/ISEL-HGU/ChangeCollector)
-- [Longest Common sub-vector Extractor (LCE)](https://github.com/S0rrow/LCE)
+- [ChangeCollector (CC)](core/ChangeCollector/)
+- [Longest Common sub-vector Extractor (LCE)](core/ChangeCollector/)
 
 ---
 
@@ -40,7 +40,7 @@
         - Gradle : Used by `ChangeCollector`,`Longest Common sub-vector Extractor` and Defects4J Framework
 
 ### How to generate the Change Vector Pool
-- `Change Collector` is a submodule of `SPI` which is responsible for generating the change vector pool.
+- `Change Collector` is a submodule of `EnCus` which is responsible for generating the change vector pool.
     - `Change Collector` is a Java project which is built with Gradle.
 - To execute the `ChangeCollector` module, you need to have JDK 17 installed.
 - To launch `ChangeCollector` to generate the change vector pool, input values descripted below in target properties file.
@@ -58,7 +58,7 @@
 > `gradle clean run`
 
 ### How to launch
-1. Change value at key `mode` in section `EnCus` among [`defects4j`, `defects4j-batch`, `github`].
+1. Change value at key `mode` in section `EnCus` among [`defects4j`, `defects4j-batch`, `github`(working in progress)].
 2. Edit `SPI.ini`:
     - [Keys to change for all modes](README.md#things-to-modify-at-spiini-in-all-modes)
     - [Keys to change for mode `defects4j`](README.md#things-to-modify-at-spiini-additionally-with-mode-defects4j)
@@ -102,20 +102,12 @@
 - `'-d', '--debug'` : Execute single Defects4J project, `Closure-14` for testing a cycle of execution. Debug uses `flfreq` and `hash-match` strategies. EnCus consists of three Java projects as submodules. Thus you may need to check if there is no compile error or wrong paths given through debug execution. If no problem occurs, you are clear to launch.
 - `'-A', '--APR'` : Choose APR tool. Default APR tool is `ConFix`.
 - `'-p', '--pool'` : Optional, you can provide patches directly being used for ConFix. Patches should be a form of #_new.java. The number should be consecutive.
-- `'-t', '--textsim'` : Use Cosine Text Similarity to extract patches. It extracts 3 * candidate numbers using LCE and top candidate numbers using cosine similarity. Giving it the value `tree`, the text similarity is evaluated based on the result of the code differencing.
 - `'-D', '--Differencing'` : Choose the code differencing tool to be used during the `ChangeCollector` stage. Options include: `GumTree3.0`, `Gumtree4.0`, and `LAS`.
 - `'-S', '--Dataset'` : Choose the pool dataset EnCus searches. Options include: `Starred`, `GBR`, and `Type`. `Starred` is based on the most starred Apache Java projects. `GBR` is based on an open source bug repository, [GrowingBugRepository](https://github.com/liuhuigmail/GrowingBugRepository). `Type` chooses projects that are of similar 'type', from [Awesome Java](https://java.libhunt.com/).
 
-### Upon Execution...
-#### "Notify me by Email"
-- You may use inserted bash script, `tracker.sh` for notifying execution finish through email. Through bash script, `tracker.sh` will execute `launcher.py` with *rebuild* option given.
-- You must use `handong.ac.kr` account only for email.
-    - due to Gmail Rules, we cannot use *gmail* accounts for mailing within SERVER #24.
-#### How to use *tracker.sh*
-> `./tracker.sh` `{location_of_EnCus}` `{your@email}`
 
 #### `SPI.ini` Specified Description
-##### **ENCUS**
+##### **SPI**
 |key|is_required|description|
 |:---|:---:|:---|
 |`mode`|Yes|How `ENCUS` will be run. Can choose among those options:<br>- `defects4j` : Tells `ENCUS` to try finding a patch out of a `Defects4J` bug.<br>- `defects4j-batch` : Tells `ENCUS` to try finding a patch out of a `Defects4J` bug, but with a number of bugs given as a list.<br>- `github` : *Currently not fully implemented.* Tells `ENCUS` to try finding a patch out of a `GitHub` project with a bug.|
